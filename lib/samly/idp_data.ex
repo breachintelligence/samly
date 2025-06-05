@@ -35,7 +35,8 @@ defmodule Samly.IdpData do
             fingerprints: [],
             esaml_idp_rec: Esaml.esaml_idp_metadata(),
             esaml_sp_rec: Esaml.esaml_sp(),
-            valid?: false
+            valid?: false,
+            force_authn: false
 
   @type t :: %__MODULE__{
           id: binary(),
@@ -63,7 +64,8 @@ defmodule Samly.IdpData do
           fingerprints: [binary()],
           esaml_idp_rec: :esaml.idp_metadata(),
           esaml_sp_rec: :esaml.sp(),
-          valid?: boolean()
+          valid?: boolean(),
+          force_authn: boolean()
         }
 
   @entdesc "md:EntityDescriptor"
@@ -122,6 +124,7 @@ defmodule Samly.IdpData do
     |> set_boolean_attr(opts_map, :signed_assertion_in_resp)
     |> set_boolean_attr(opts_map, :signed_envelopes_in_resp)
     |> set_boolean_attr(opts_map, :allow_idp_initiated_flow)
+    |> set_boolean_attr(opts_map, :force_authn)
     |> set_boolean_attr(opts_map, :debug_mode)
   end
 
