@@ -32,7 +32,7 @@ defmodule Samly.Mixfile do
       {:sweet_xml, "~> 0.6"},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
-      {:esaml, git: "git@github.com:breachintelligence/esaml.git"}
+      {:esaml, git: "https://github.com/breachintelligence/esaml.git"}
     ]
   end
 
