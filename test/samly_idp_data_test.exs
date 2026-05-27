@@ -295,4 +295,28 @@ defmodule SamlyIdpDataTest do
     %IdpData{} = idp_data = IdpData.load_provider(idp_config, sps)
     assert idp_data.nameid_format == :unknown
   end
+
+  test "on_logout defaults to nil", %{sps: sps} do
+    %IdpData{} = idp_data = IdpData.load_provider(@idp_config1, sps)
+    assert idp_data.on_logout == nil
+  end
+
+  test "on_logout is set from config", %{sps: sps} do
+    callback = fn _idp_id, _assertion -> :ok end
+    idp_config = Map.put(@idp_config1, :on_logout, callback)
+    %IdpData{} = idp_data = IdpData.load_provider(idp_config, sps)
+    assert idp_data.on_logout == callback
+  end
+
+  test "on_logout rejects non-function values", %{sps: sps} do
+    idp_config = Map.put(@idp_config1, :on_logout, {MyMod, :callback})
+    %IdpData{} = idp_data = IdpData.load_provider(idp_config, sps)
+    assert idp_data.on_logout == nil
+  end
+
+  test "on_logout rejects wrong-arity functions", %{sps: sps} do
+    idp_config = Map.put(@idp_config1, :on_logout, fn -> :ok end)
+    %IdpData{} = idp_data = IdpData.load_provider(idp_config, sps)
+    assert idp_data.on_logout == nil
+  end
 end

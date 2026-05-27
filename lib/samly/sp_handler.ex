@@ -169,7 +169,8 @@ defmodule Samly.SPHandler do
 
       {conn, return_status} =
         case State.get_assertion(conn, assertion_key) do
-          %Assertion{idp_id: ^idp_id, subject: %Subject{name: ^nameid}} ->
+          %Assertion{idp_id: ^idp_id, subject: %Subject{name: ^nameid}} = assertion ->
+            maybe_call_on_logout(idp, idp_id, assertion)
             conn = State.delete_assertion(conn, assertion_key)
             {conn, :success}
 
@@ -204,4 +205,26 @@ defmodule Samly.SPHandler do
 
   defp safe_decode_www_form(nil), do: ""
   defp safe_decode_www_form(data), do: URI.decode_www_form(data)
+
+  @doc false
+  def maybe_call_on_logout(%IdpData{on_logout: on_logout}, idp_id, assertion)
+      when is_function(on_logout, 2) do
+    try do
+      on_logout.(idp_id, assertion)
+      :ok
+    catch
+      kind, reason ->
+        stacktrace = __STACKTRACE__
+
+        Logger.error(
+          "[Samly] on_logout callback failed: #{inspect(kind)} #{inspect(reason)}\n" <>
+            Exception.format_stacktrace(stacktrace)
+        )
+
+        :ok
+    end
+  end
+
+  @doc false
+  def maybe_call_on_logout(_, _, _), do: :ok
 end

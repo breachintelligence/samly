@@ -16,6 +16,7 @@ defmodule Samly.IdpData do
             metadata_file: nil,
             metadata: nil,
             pre_session_create_pipeline: nil,
+            on_logout: nil,
             use_redirect_for_req: false,
             sign_requests: true,
             sign_metadata: true,
@@ -45,6 +46,7 @@ defmodule Samly.IdpData do
           metadata_file: nil | binary(),
           metadata: nil | binary(),
           pre_session_create_pipeline: nil | module(),
+          on_logout: nil | (binary(), Samly.Assertion.t() -> any()),
           use_redirect_for_req: boolean(),
           sign_requests: boolean(),
           sign_metadata: boolean(),
@@ -117,6 +119,7 @@ defmodule Samly.IdpData do
     %IdpData{idp_data | id: id, sp_id: sp_id, base_url: Map.get(opts_map, :base_url)}
     |> set_metadata(opts_map)
     |> set_pipeline(opts_map)
+    |> set_on_logout(opts_map)
     |> set_allowed_target_urls(opts_map)
     |> set_boolean_attr(opts_map, :use_redirect_for_req)
     |> set_boolean_attr(opts_map, :sign_requests)
@@ -204,6 +207,24 @@ defmodule Samly.IdpData do
   defp set_pipeline(%IdpData{} = idp_data, %{} = opts_map) do
     pipeline = Map.get(opts_map, :pre_session_create_pipeline)
     %IdpData{idp_data | pre_session_create_pipeline: pipeline}
+  end
+
+  @spec set_on_logout(%IdpData{}, map()) :: %IdpData{}
+  defp set_on_logout(%IdpData{} = idp_data, %{} = opts_map) do
+    case Map.get(opts_map, :on_logout) do
+      nil ->
+        idp_data
+
+      fun when is_function(fun, 2) ->
+        %IdpData{idp_data | on_logout: fun}
+
+      other ->
+        Logger.warning(
+          "[Samly] Invalid on_logout callback: expected a 2-arity function, got #{inspect(other)}. Ignoring."
+        )
+
+        idp_data
+    end
   end
 
   defp set_allowed_target_urls(%IdpData{} = idp_data, %{} = opts_map) do
