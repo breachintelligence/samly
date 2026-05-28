@@ -190,7 +190,8 @@ config :samly, Samly.Provider,
       #signed_envelopes_in_resp: true,
       #allow_idp_initiated_flow: false,
       #allowed_target_urls: ["https://do-good.org"],
-      #nameid_format: :transient
+      #nameid_format: :transient,
+      #on_logout: &MyApp.SamlyHooks.on_logout/2
     }
   ]
 ```
@@ -221,6 +222,7 @@ config :samly, Samly.Provider,
 | `allow_idp_initiated_flow` | _(optional)_ Default is `false`. IDP initiated SSO is allowed only when this is set to `true`. |
 | `allowed_target_urls` | _(optional)_ Default is `[]`. `Samly` uses this **only** when `allow_idp_initiated_flow` parameter is set to `true`. Make sure to set this to one or more exact URLs you want to allow (whitelist). The URL to redirect the user after completing the SSO flow is sent from IDP in auth response as `relay_state`. This `relay_state` target URL is matched against this URL list. Set the value to `nil` if you do not want this whitelist capability. |
 | `nameid_format` | _(optional)_ When specified, `Samly` includes the value as the `NameIDPolicy` element's `Format` attribute in the login request. Value must either be a string or one of the following atoms: `:email`, `:x509`, `:windows`, `:krb`, `:persistent`, `:transient`. Use the string value when you need to specify a non-standard/custom nameid format supported by your IdP. |
+| `on_logout` | _(optional)_ Default is `nil`. A 2-arity function `fun(idp_id, assertion)` invoked during an **IdP-initiated** Single Logout (SLO), after the matching authenticated assertion is found and just before it is removed from the assertion store. `idp_id` is the IdP identifier (string); `assertion` is the `%Samly.Assertion{}` being logged out. The return value is ignored. Use this to run side effects on logout (e.g. clearing application-side session/cache for the user). Any exception, throw, or exit raised by the callback is caught and logged (`[Samly] on_logout callback failed: ...`) — it never interrupts the logout flow. Non-function or wrong-arity values are rejected at config load (logged and treated as `nil`). |
 
 #### Authenticated SAML Assertion State Store
 
