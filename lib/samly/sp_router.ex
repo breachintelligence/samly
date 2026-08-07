@@ -6,6 +6,7 @@ defmodule Samly.SPRouter do
   import Samly.RouterUtil, only: [check_idp_id: 2]
 
   plug :fetch_session
+  plug :fetch_query_params
   plug :match
   plug :check_idp_id
   plug :dispatch
@@ -17,6 +18,13 @@ defmodule Samly.SPRouter do
 
   post "/consume/*idp_id_seg" do
     conn |> Samly.SPHandler.consume_signin_response()
+  end
+
+  get "/logout/*idp_id_seg" do
+    case conn.params["SAMLResponse"] do
+      nil -> conn |> send_resp(403, "invalid_request")
+      _ -> Samly.SPHandler.handle_logout_response(conn)
+    end
   end
 
   post "/logout/*idp_id_seg" do
