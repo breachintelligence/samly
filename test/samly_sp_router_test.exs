@@ -63,7 +63,8 @@ defmodule SamlySpRouterTest do
     invalid_requests = [
       {String.replace(redirect_url, ~r/Signature=[^&]+/, "Signature=present"), "relay-state"},
       {String.replace(redirect_url, "RelayState=relay-state", "RelayState=modified"), "modified"},
-      {redirect_url <> "&Sign%61ture=duplicate", "relay-state"}
+      {redirect_url <> "&Sign%61ture=duplicate", "relay-state"},
+      {redirect_url <> "&RelayState%5B%5D=attacker", "relay-state"}
     ]
 
     for {invalid_url, relay_state} <- invalid_requests do
@@ -156,6 +157,41 @@ defmodule SamlySpRouterTest do
     assert conn.resp_body =~ ~s(name="SAMLResponse")
     assert conn.resp_body =~ relay_state
     assert State.get_assertion(conn, assertion_key) == nil
+  end
+
+  test "notifies the host about a signed LogoutRequest without a stored assertion", %{idp: idp} do
+    test_pid = self()
+    nameid = "state-cleaned-user@example.com"
+    relay_state = "relay-state"
+
+    idp = %IdpData{
+      idp
+      | on_logout: fn idp_id, assertion -> send(test_pid, {:logout, idp_id, assertion}) end
+    }
+
+    Application.put_env(:samly, :identity_providers, %{"idp1" => idp})
+
+    unsigned_sp = Esaml.esaml_sp(idp.esaml_sp_rec, sp_sign_requests: false)
+
+    request =
+      :esaml_sp.generate_logout_request(
+        ~c"http://samly.howto:4003/sso/sp/logout/idp1",
+        String.to_charlist(nameid),
+        unsigned_sp
+      )
+
+    conn =
+      :get
+      |> conn(signed_redirect_url(request, relay_state, idp))
+      |> init_test_session(%{})
+      |> put_private(:samly_nonce, "nonce")
+      |> SPRouter.call(@router_opts)
+
+    assert conn.status == 200
+    assert conn.resp_body =~ ~s(name="SAMLResponse")
+
+    assert_received {:logout, "idp1",
+                     %Assertion{idp_id: "idp1", subject: %Subject{name: ^nameid}}}
   end
 
   test "accepts an XML-signed LogoutRequest using the HTTP-POST binding", %{idp: idp} do

@@ -52,6 +52,9 @@ defmodule Samly.HTTPRedirectSignature do
     name = URI.decode_www_form(encoded_name)
 
     cond do
+      nested_saml_param?(name) ->
+        {:halt, {:error, :invalid_parameter}}
+
       name not in @saml_params ->
         {:cont, {:ok, params}}
 
@@ -61,6 +64,15 @@ defmodule Samly.HTTPRedirectSignature do
       true ->
         {:cont, {:ok, Map.put(params, name, value)}}
     end
+  end
+
+  # Plug treats `RelayState[]` and `RelayState[key]` as variants of
+  # `RelayState`. Reject them here so downstream query parsing cannot replace
+  # an authenticated value with an unsigned one.
+  defp nested_saml_param?(name) do
+    Enum.any?(@saml_params, fn param ->
+      String.starts_with?(name, param <> "[")
+    end)
   end
 
   defp message(params) do

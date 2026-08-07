@@ -48,7 +48,7 @@ defmodule SamlyHTTPRedirectSignatureTest do
     assert HTTPRedirectSignature.verify(query, context.certs) == {:ok, :response}
   end
 
-  test "rejects missing, ambiguous, duplicate, or noncanonical parameters", context do
+  test "rejects missing, ambiguous, duplicate, nested, or noncanonical parameters", context do
     valid_query = signed_query(:response, "payload", context.key)
     encoded_sig_alg = URI.encode_www_form(elem(hd(@algorithms), 0))
 
@@ -60,7 +60,9 @@ defmodule SamlyHTTPRedirectSignatureTest do
       valid_query <> "&SAMLRequest=",
       valid_query <> "&SAMLResponse=duplicate",
       valid_query <> "&Sign%61ture=duplicate",
-      String.replace(valid_query, "SAMLResponse", "%53AMLResponse")
+      String.replace(valid_query, "SAMLResponse", "%53AMLResponse"),
+      valid_query <> "&RelayState[]=attacker",
+      valid_query <> "&RelayState%5B%5D=attacker"
     ]
 
     for query <- invalid_queries do
