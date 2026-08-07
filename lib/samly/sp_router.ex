@@ -21,21 +21,37 @@ defmodule Samly.SPRouter do
   end
 
   get "/logout/*idp_id_seg" do
-    case conn.params["SAMLResponse"] do
-      nil -> conn |> send_resp(403, "invalid_request")
-      _ -> Samly.SPHandler.handle_logout_response(conn)
+    case Samly.HTTPRedirectSignature.verify(conn.query_string, conn.private.samly_idp.certs) do
+      {:ok, :response} ->
+        Samly.SPHandler.handle_logout_response(conn)
+
+      {:ok, :request} ->
+        conn
+        |> put_private(:samly_http_redirect_signature_verified, true)
+        |> Samly.SPHandler.handle_logout_request()
+
+      {:error, :invalid_signature} ->
+        send_resp(conn, 403, "invalid_request")
     end
   end
 
   post "/logout/*idp_id_seg" do
-    cond do
-      conn.params["SAMLResponse"] != nil -> Samly.SPHandler.handle_logout_response(conn)
-      conn.params["SAMLRequest"] != nil -> Samly.SPHandler.handle_logout_request(conn)
-      true -> conn |> send_resp(403, "invalid_request")
+    case logout_message(conn.body_params) do
+      :response -> Samly.SPHandler.handle_logout_response(conn)
+      :request -> Samly.SPHandler.handle_logout_request(conn)
+      :invalid -> send_resp(conn, 403, "invalid_request")
     end
   end
 
   match _ do
     conn |> send_resp(404, "not_found")
+  end
+
+  defp logout_message(params) do
+    case {params["SAMLRequest"], params["SAMLResponse"]} do
+      {request, nil} when is_binary(request) and request != "" -> :request
+      {nil, response} when is_binary(response) and response != "" -> :response
+      _ -> :invalid
+    end
   end
 end

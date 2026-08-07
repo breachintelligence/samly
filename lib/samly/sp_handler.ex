@@ -132,9 +132,10 @@ defmodule Samly.SPHandler do
     %IdpData{esaml_idp_rec: _idp_rec, esaml_sp_rec: sp_rec} = idp
     sp = ensure_sp_uris_set(sp_rec, conn)
 
-    saml_encoding = conn.params["SAMLEncoding"]
-    saml_response = conn.params["SAMLResponse"]
-    relay_state = conn.params["RelayState"] |> safe_decode_www_form()
+    params = binding_params(conn)
+    saml_encoding = params["SAMLEncoding"]
+    saml_response = params["SAMLResponse"]
+    relay_state = params["RelayState"] || ""
 
     with {:ok, _payload} <- Helper.decode_idp_signout_resp(sp, saml_encoding, saml_response),
          ^relay_state when relay_state != nil <- get_session(conn, "relay_state"),
@@ -157,14 +158,20 @@ defmodule Samly.SPHandler do
   def handle_logout_request(conn) do
     %IdpData{id: idp_id} = idp = conn.private[:samly_idp]
     %IdpData{esaml_idp_rec: idp_rec, esaml_sp_rec: sp_rec} = idp
-    sp = ensure_sp_uris_set(sp_rec, conn)
 
-    saml_encoding = conn.body_params["SAMLEncoding"]
-    saml_request = conn.body_params["SAMLRequest"]
-    relay_state = conn.body_params["RelayState"] |> safe_decode_www_form()
+    sp =
+      sp_rec
+      |> ensure_sp_uris_set(conn)
+      |> allow_redirect_binding_signature(conn)
+
+    params = binding_params(conn)
+    saml_encoding = params["SAMLEncoding"]
+    saml_request = params["SAMLRequest"]
+    relay_state = params["RelayState"] || ""
 
     with {:ok, payload} <- Helper.decode_idp_signout_req(sp, saml_encoding, saml_request) do
-      Esaml.esaml_logoutreq(name: nameid, issuer: _issuer) = payload
+      Esaml.esaml_logoutreq(name: encoded_nameid, issuer: _issuer) = payload
+      nameid = List.to_string(encoded_nameid)
       assertion_key = {idp_id, nameid}
 
       {conn, return_status} =
@@ -205,6 +212,18 @@ defmodule Samly.SPHandler do
 
   defp safe_decode_www_form(nil), do: ""
   defp safe_decode_www_form(data), do: URI.decode_www_form(data)
+
+  defp binding_params(%Conn{method: "GET", query_params: params}), do: params
+  defp binding_params(%Conn{body_params: params}), do: params
+
+  # HTTP-Redirect authenticates the encoded query rather than the XML document.
+  defp allow_redirect_binding_signature(sp, %Conn{
+         private: %{samly_http_redirect_signature_verified: true}
+       }) do
+    Esaml.esaml_sp(sp, idp_signs_logout_requests: false)
+  end
+
+  defp allow_redirect_binding_signature(sp, _conn), do: sp
 
   @doc false
   def maybe_call_on_logout(%IdpData{on_logout: on_logout}, idp_id, assertion)
