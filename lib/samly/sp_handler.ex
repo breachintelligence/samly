@@ -63,6 +63,7 @@ defmodule Samly.SPHandler do
           _ ->
             conn |> send_resp(403, "access_denied #{inspect(reason)}")
         end
+
       _ -> conn |> send_resp(403, "access_denied")
     end
 
@@ -182,7 +183,16 @@ defmodule Samly.SPHandler do
             {conn, :success}
 
           _ ->
-            {conn, :denied}
+            # Hosts may remove a completed login assertion from Samly state while
+            # retaining their own session. A validated IdP LogoutRequest still
+            # carries an authenticated NameID, so notify the host with the
+            # minimum assertion data needed to invalidate that session.
+            maybe_call_on_logout(idp, idp_id, %Assertion{
+              idp_id: idp_id,
+              subject: %Subject{name: nameid}
+            })
+
+            {conn, :success}
         end
 
       {idp_signout_url, resp_xml_frag} = Helper.gen_idp_signout_resp(sp, idp_rec, return_status)
